@@ -94,7 +94,7 @@ class RasterAutoStylePlugin:
                 continue
             self._watch(layer)
             if self._auto_enabled() and core.is_dynamic(layer):
-                self._apply(layer, quiet=True)
+                self._apply(layer, quiet=True, force=False)
 
     def _on_layers_removed(self, layer_ids):
         for layer_id in layer_ids:
@@ -133,9 +133,9 @@ class RasterAutoStylePlugin:
             self._bar("Seleziona uno o piu' layer raster nel pannello Layer", Qgis.Warning)
         return layers
 
-    def _apply(self, layer, quiet=False) -> bool:
+    def _apply(self, layer, quiet=False, force=True) -> bool:
         try:
-            vmin, vmax, source = core.apply_dynamic(layer)
+            vmin, vmax, source = core.apply_dynamic(layer, force=force)
         except core.DynamicStyleError as exc:
             self._bar(str(exc), Qgis.Warning)
             return False
@@ -245,12 +245,24 @@ class RasterAutoStylePlugin:
         if not isinstance(layer, QgsRasterLayer):
             self._bar("Seleziona un layer raster", Qgis.Warning)
             return
-        modes = ["Min/Max del file", "Percentili 2–98%"]
+        modes = ["Min/Max del file", "Percentili (configurabili)"]
         choice, ok = QInputDialog.getItem(
             self.iface.mainWindow(), "Template dinamico",
             "Come calcolare il range di ogni raster:", modes, 0, False)
         if not ok:
             return
+        p_low, p_high = 2.0, 98.0
+        if choice == modes[1]:
+            p_low, ok = QInputDialog.getDouble(
+                self.iface.mainWindow(), "Percentile inferiore",
+                "Percentile inferiore (%):", p_low, 0, 49.9, 1)
+            if not ok:
+                return
+            p_high, ok = QInputDialog.getDouble(
+                self.iface.mainWindow(), "Percentile superiore",
+                "Percentile superiore (%):", p_high, p_low + 0.1, 100, 1)
+            if not ok:
+                return
         path, _ = QFileDialog.getSaveFileName(
             self.iface.mainWindow(), "Salva template dinamico",
             f"{layer.name()}_dinamico.qml", "Stile QGIS (*.qml)")
@@ -260,7 +272,8 @@ class RasterAutoStylePlugin:
             path += ".qml"
         try:
             count = core.export_template(
-                layer, path, mode="percentile" if choice == modes[1] else "minmax")
+                layer, path, mode="percentile" if choice == modes[1] else "minmax",
+                p_low=p_low, p_high=p_high)
         except core.DynamicStyleError as exc:
             self._bar(str(exc), Qgis.Warning)
             return
