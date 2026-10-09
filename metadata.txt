@@ -4,7 +4,7 @@ qgisMinimumVersion=3.22
 description=One QML, every raster on its own min/max: adapts a pseudocolor style to the range of each raster
 about=A QML style marked as dynamic (custom property dynamic_minmax=true) holds a color ramp with relative 0-1 stops. The plugin rescales it to the range of each raster, reading statistics from the COG metadata, from the .aux.xml sidecar or estimating them. It also computes exact statistics into a .aux.xml sidecar without modifying the TIFF, imports the ColorMap of a GeoServer SLD and exports any existing style as a dynamic template. User interface in Italian.
 version=0.1.0
-author=pigreco
+author=Salvatore Fiandaca
 email=pigrecoinfinito@gmail.com
 category=Raster
 tags=raster,style,qml,sld,geoserver,cog,statistics,minmax,stretch,color ramp,legend
