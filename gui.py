@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import os
 
-from qgis.core import Qgis, QgsProject, QgsRasterLayer, QgsSettings
+from qgis.core import (Qgis, QgsApplication, QgsProject, QgsRasterLayer, QgsSettings,
+                       QgsTask)
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QInputDialog, QMenu, QToolButton
 
@@ -20,6 +21,7 @@ class RasterAutoStylePlugin:
         self.actions: list[QAction] = []
         self._busy = False  # evita doppie applicazioni durante le nostre operazioni
         self._slots = {}    # layer id -> slot collegato a styleLoaded
+        self._tasks = []    # task in corso, tenuti vivi finche' non terminano
 
     # ------------------------------------------------------------------ GUI
     def initGui(self):
@@ -51,13 +53,17 @@ class RasterAutoStylePlugin:
 
         project = QgsProject.instance()
         project.layersAdded.connect(self._on_layers_added)
+        project.layersWillBeRemoved.connect(self._on_layers_removed)
         self._on_layers_added(project.mapLayers().values())
 
     def unload(self):
         try:
             QgsProject.instance().layersAdded.disconnect(self._on_layers_added)
+            QgsProject.instance().layersWillBeRemoved.disconnect(self._on_layers_removed)
         except TypeError:
             pass
+        for task in self._tasks:
+            task.cancel()
         for layer in QgsProject.instance().mapLayers().values():
             self._unwatch(layer)
         for action in self.actions:
@@ -89,6 +95,12 @@ class RasterAutoStylePlugin:
             self._watch(layer)
             if self._auto_enabled() and core.is_dynamic(layer):
                 self._apply(layer, quiet=True)
+
+    def _on_layers_removed(self, layer_ids):
+        for layer_id in layer_ids:
+            layer = QgsProject.instance().mapLayer(layer_id)
+            if layer is not None:
+                self._unwatch(layer)
 
     def _watch(self, layer):
         # styleLoaded: l'utente ha caricato una QML da Proprieta' > Stile
@@ -193,15 +205,40 @@ class RasterAutoStylePlugin:
                 self._bar(f"{layer.name()}: lo stile non e' dinamico", Qgis.Warning)
 
     def force_stats_selected(self):
+        # scansione completa in background: su raster grandi bloccherebbe la GUI
         for layer in self._selected_rasters():
+            self._start_force_stats(layer)
+
+    def _start_force_stats(self, layer):
+        outcome = {}
+        layer_id = layer.id()
+
+        def run(task):
             try:
-                sidecar = core.force_stats(layer, approx=False)
+                outcome["sidecar"] = core.force_stats(layer, approx=False, feedback=task)
             except core.DynamicStyleError as exc:
-                self._bar(str(exc), Qgis.Warning)
-                continue
-            self._bar(f"Statistiche salvate in {os.path.basename(sidecar)}", Qgis.Success)
-            if core.is_dynamic(layer):
-                self._apply(layer, quiet=True)
+                outcome["error"] = str(exc)
+                return False
+            return True
+
+        def done(_exception, _result=None):
+            if task in self._tasks:
+                self._tasks.remove(task)
+            if "error" in outcome:
+                self._bar(outcome["error"], Qgis.Warning)
+                return
+            if "sidecar" not in outcome:  # task annullato
+                return
+            self._bar(f"Statistiche salvate in {os.path.basename(outcome['sidecar'])}",
+                      Qgis.Success)
+            current = QgsProject.instance().mapLayer(layer_id)  # puo' essere stato rimosso
+            if current is not None and core.is_dynamic(current):
+                self._apply(current, quiet=True)
+
+        task = QgsTask.fromFunction(f"Statistiche {layer.name()}", run, on_finished=done)
+        self._tasks.append(task)
+        QgsApplication.taskManager().addTask(task)
+        self._bar(f"{layer.name()}: calcolo statistiche in background…", Qgis.Info)
 
     def export_template(self):
         layer = self.iface.activeLayer()

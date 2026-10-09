@@ -30,5 +30,5 @@ GUI wiring: `layersAdded` → `_watch` connects each raster's `styleLoaded` sign
 
 ## Notes
 
-- `metadata.txt` author/email are still placeholders ("Da compilare"); `experimental=True`.
+- `metadata.txt` author/email are set; `experimental=True`.
 - Per the README, only tested headless on QGIS 3.34; GUI behavior is unverified.

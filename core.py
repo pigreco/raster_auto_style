@@ -120,9 +120,9 @@ def gdal_path(layer: QgsRasterLayer) -> str | None:
 
 
 def _read_stats(path: str, band: int, use_sidecar: bool):
-    previous = gdal.GetConfigOption("GDAL_PAM_ENABLED")
+    # opzione limitata al thread corrente: non tocca i thread di rendering di QGIS
     if not use_sidecar:
-        gdal.SetConfigOption("GDAL_PAM_ENABLED", "NO")
+        gdal.SetThreadLocalConfigOption("GDAL_PAM_ENABLED", "NO")
     try:
         ds = gdal.Open(path, gdal.GA_ReadOnly)
         if ds is None or band > ds.RasterCount:
@@ -132,30 +132,56 @@ def _read_stats(path: str, band: int, use_sidecar: bool):
         mx = b.GetMetadataItem("STATISTICS_MAXIMUM")
         ds = None
     finally:
-        gdal.SetConfigOption("GDAL_PAM_ENABLED", previous)
+        if not use_sidecar:
+            gdal.SetThreadLocalConfigOption("GDAL_PAM_ENABLED", None)
     if mn is None or mx is None:
         return None
     return float(mn), float(mx)
+
+
+_STATS_CACHE: dict = {}  # (path, banda, mtime file, mtime sidecar) -> risultato
+
+
+def _mtime(path: str) -> float:
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return 0.0
 
 
 def stored_stats(layer: QgsRasterLayer, band: int):
     """
     Statistiche gia' disponibili, in quest'ordine:
     1. tag incorporati nel file (scritti dal produttore, gli stessi di GeoServer);
-    2. sidecar .aux.xml (scritto da "Forza statistiche" o da QGIS stesso).
+    2. sidecar .aux.xml (scritto da "Forza statistiche" o da QGIS stesso),
+       ignorato se piu' vecchio del file.
     Il sidecar viene letto per secondo perche' QGIS lo scrive anche con
     statistiche stimate, che non devono prevalere su quelle del produttore.
+    Il risultato e' in cache finche' file e sidecar non cambiano.
     """
     path = gdal_path(layer)
     if not path:
         return None
+    sidecar = path + ".aux.xml"
+    key = (path, band, _mtime(path), _mtime(sidecar))
+    if key in _STATS_CACHE:
+        return _STATS_CACHE[key]
+
+    result = None
     stats = _read_stats(path, band, use_sidecar=False)
     if stats:
-        return stats[0], stats[1], "metadati del file"
-    stats = _read_stats(path, band, use_sidecar=True)
-    if stats:
-        return stats[0], stats[1], "sidecar .aux.xml"
-    return None
+        result = (stats[0], stats[1], "metadati del file")
+    elif _mtime(sidecar) and _mtime(sidecar) < _mtime(path):
+        log(f"{os.path.basename(path)}: sidecar piu' vecchio del file, ignorato",
+            Qgis.Warning)
+    else:
+        stats = _read_stats(path, band, use_sidecar=True)
+        if stats:
+            result = (stats[0], stats[1], "sidecar .aux.xml")
+    if len(_STATS_CACHE) > 512:
+        _STATS_CACHE.clear()
+    _STATS_CACHE[key] = result
+    return result
 
 
 def _minmax_flags():
@@ -226,7 +252,7 @@ def apply_dynamic(layer: QgsRasterLayer):
 # --------------------------------------------------------------------------
 # Forza statistiche (sidecar .aux.xml)
 # --------------------------------------------------------------------------
-def force_stats(layer: QgsRasterLayer, approx: bool = True) -> str:
+def force_stats(layer: QgsRasterLayer, approx: bool = True, feedback=None) -> str:
     """
     Calcola le statistiche di tutte le bande con GDAL. Aprendo il file in sola
     lettura, GDAL le salva nel sidecar <file>.aux.xml senza modificare il TIFF.
@@ -242,9 +268,16 @@ def force_stats(layer: QgsRasterLayer, approx: bool = True) -> str:
     ds = gdal.Open(path, gdal.GA_ReadOnly)
     if ds is None:
         raise DynamicStyleError(f"Impossibile aprire {path}")
-    for i in range(1, ds.RasterCount + 1):
+    total = ds.RasterCount
+    for i in range(1, total + 1):
+        if feedback is not None and feedback.isCanceled():
+            ds = None
+            raise DynamicStyleError("Calcolo statistiche annullato")
         ds.GetRasterBand(i).ComputeStatistics(approx)
+        if feedback is not None:
+            feedback.setProgress(100 * i / total)
     ds = None  # la chiusura scrive il .aux.xml
+    _STATS_CACHE.clear()
 
     sidecar = path + ".aux.xml"
     if not os.path.exists(sidecar):
@@ -307,7 +340,10 @@ def read_sld_colormap(sld_path: str):
     """Legge la prima ColorMap dell'SLD: (tipo, [(quantity, QColor), ...])."""
     import xml.etree.ElementTree as ET
 
-    root = ET.parse(sld_path).getroot()
+    try:
+        root = ET.parse(sld_path).getroot()
+    except (ET.ParseError, OSError) as exc:
+        raise DynamicStyleError(f"SLD non leggibile: {exc}") from exc
     colormap = next((el for el in root.iter() if el.tag.split("}")[-1] == "ColorMap"), None)
     if colormap is None:
         raise DynamicStyleError("Nessuna ColorMap trovata nell'SLD")
@@ -317,8 +353,15 @@ def read_sld_colormap(sld_path: str):
         if el.tag.split("}")[-1] != "ColorMapEntry":
             continue
         color = QColor(el.get("color", "#000000"))
-        color.setAlphaF(float(el.get("opacity", 1)))
-        entries.append((float(el.get("quantity")), color))
+        if not color.isValid():
+            raise DynamicStyleError(f"Colore non valido nell'SLD: {el.get('color')!r}")
+        try:
+            color.setAlphaF(float(el.get("opacity", 1)))
+            quantity = float(el.get("quantity"))
+        except (TypeError, ValueError) as exc:
+            raise DynamicStyleError(
+                f"ColorMapEntry non valida (quantity/opacity): {el.attrib}") from exc
+        entries.append((quantity, color))
     if len(entries) < 2:
         raise DynamicStyleError("La ColorMap deve contenere almeno 2 voci")
 
@@ -365,6 +408,7 @@ def apply_sld_colormap(layer: QgsRasterLayer, sld_path: str,
     renderer = QgsSingleBandPseudoColorRenderer(layer.dataProvider(), 1, shader)
     renderer.setClassificationMin(lo)
     renderer.setClassificationMax(hi)
+    previous = layer.renderer().clone() if layer.renderer() else None
     layer.setRenderer(renderer)
 
     layer.removeCustomProperty(PROP_STOPS)
@@ -372,7 +416,15 @@ def apply_sld_colormap(layer: QgsRasterLayer, sld_path: str,
     if dynamic:
         layer.setCustomProperty(PROP_FLAG, "true")
         layer.setCustomProperty(PROP_MODE, "minmax")
-        apply_dynamic(layer)
+        try:
+            apply_dynamic(layer)
+        except DynamicStyleError:
+            # non lascio il layer a meta': ripristino il renderer precedente
+            if previous is not None:
+                layer.setRenderer(previous)
+            layer.removeCustomProperty(PROP_FLAG)
+            layer.triggerRepaint()
+            raise
     else:
         layer.triggerRepaint()
         layer.emitStyleChanged()
