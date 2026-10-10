@@ -17,6 +17,7 @@ import os
 from osgeo import gdal
 from qgis.core import (
     Qgis,
+    QgsColorRampLegendNodeSettings,
     QgsColorRampShader,
     QgsMessageLog,
     QgsRasterBandStats,
@@ -428,6 +429,10 @@ def apply_sld_colormap(layer: QgsRasterLayer, sld_path: str,
     function = QgsColorRampShader(lo, hi)
     function.setColorRampType(_SLD_TYPES.get(kind, QgsColorRampShader.Interpolated))
     function.setClassificationMode(QgsColorRampShader.EqualInterval)
+    # legenda a classi (elenco di item) invece della barra continua
+    legend = function.legendSettings() or QgsColorRampLegendNodeSettings()
+    legend.setUseContinuousLegend(False)
+    function.setLegendSettings(legend)
     function.setColorRampItemList([
         QgsColorRampShader.ColorRampItem(lo + r * span, c, f"{lo + r * span:.4f}")
         for r, c in stops])
