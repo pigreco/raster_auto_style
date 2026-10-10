@@ -50,3 +50,7 @@ L'automatismo si disattiva dall'ultima voce del menu.
 - Supporta solo il renderer *Singola banda falso colore*.
 - QGIS stesso scrive un `.aux.xml` quando calcola statistiche: per questo i tag incorporati nel file hanno la precedenza sul sidecar.
 - Testato in QGIS 3.34 headless; da verificare a mano nell'interfaccia e sulle versioni usate dagli utenti.
+
+## Ringraziamenti
+
+Idea di [Andrea Borruso](https://github.com/aborruso)
