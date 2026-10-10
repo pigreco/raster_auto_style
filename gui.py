@@ -109,7 +109,9 @@ class RasterAutoStylePlugin:
     def _watch(self, layer):
         # styleLoaded: l'utente ha caricato una QML da Proprieta' > Stile
         if hasattr(layer, "styleLoaded") and layer.id() not in self._slots:
-            slot = lambda _categories, lyr=layer: self._on_style_loaded(lyr)
+            def slot(_categories, lyr=layer):
+                self._on_style_loaded(lyr)
+
             layer.styleLoaded.connect(slot)
             self._slots[layer.id()] = slot
 
@@ -131,8 +133,8 @@ class RasterAutoStylePlugin:
 
     # --------------------------------------------------------------- azioni
     def _selected_rasters(self):
-        layers = [l for l in self.iface.layerTreeView().selectedLayers()
-                  if isinstance(l, QgsRasterLayer)]
+        layers = [lyr for lyr in self.iface.layerTreeView().selectedLayers()
+                  if isinstance(lyr, QgsRasterLayer)]
         if not layers:
             self._bar("Seleziona uno o piu' layer raster nel pannello Layer", Qgis.Warning)
         return layers

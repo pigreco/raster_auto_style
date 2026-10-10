@@ -368,10 +368,11 @@ _SLD_TYPES = {
 
 def read_sld_colormap(sld_path: str):
     """Legge la prima ColorMap dell'SLD: (tipo, [(quantity, QColor), ...])."""
-    import xml.etree.ElementTree as ET
+    # l'SLD e' un file locale scelto dall'utente, non input di rete: nosec sicuro
+    import xml.etree.ElementTree as ET  # nosec B405
 
     try:
-        root = ET.parse(sld_path).getroot()
+        root = ET.parse(sld_path).getroot()  # nosec B314
     except (ET.ParseError, OSError) as exc:
         raise DynamicStyleError(f"SLD non leggibile: {exc}") from exc
     colormap = next((el for el in root.iter() if el.tag.split("}")[-1] == "ColorMap"), None)
