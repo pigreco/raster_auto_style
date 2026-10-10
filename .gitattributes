@@ -1,0 +1,7 @@
+# File esclusi dallo ZIP del plugin (git archive)
+.gitattributes export-ignore
+.gitignore export-ignore
+.github export-ignore
+scripts export-ignore
+CLAUDE.md export-ignore
+raster_test export-ignore
