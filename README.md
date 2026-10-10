@@ -4,6 +4,8 @@
 
 Adatta uno stile *Singola banda falso colore* al min/max di ogni raster, con una sola QML.
 
+Guida completa: [docs/GUIDA.md](docs/GUIDA.md).
+
 ## Installazione
 
 QGIS → Plugin → Gestisci e installa plugin → **Installa da ZIP** → `raster_auto_style.zip`.
@@ -25,7 +27,7 @@ La riscalatura avviene da sola quando:
 - si carica una QML dinamica da Proprietà › Stile;
 - si apre un progetto che contiene layer con stile dinamico.
 
-L'automatismo si disattiva dalla prima voce del menu.
+L'automatismo si disattiva dall'ultima voce del menu.
 
 ## Azioni
 
