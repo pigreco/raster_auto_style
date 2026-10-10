@@ -5,7 +5,7 @@
 [![version](https://img.shields.io/github/v/release/pigreco/raster_auto_style?label=version&color=0b7bbf)](https://github.com/pigreco/raster_auto_style/releases/latest)
 [![languages](https://img.shields.io/badge/languages-IT-2e9e4f)](docs/GUIDA.md)
 [![QGIS](https://img.shields.io/badge/QGIS-3.22%2B-e07b39)](https://qgis.org)
-[![license](https://img.shields.io/github/license/pigreco/raster_auto_style?color=5a4fcf)](LICENSE)
+[![license](https://img.shields.io/badge/license-GPLv3-5a4fcf)](LICENSE)
 [![release](https://img.shields.io/github/actions/workflow/status/pigreco/raster_auto_style/release.yml?label=release)](https://github.com/pigreco/raster_auto_style/actions/workflows/release.yml)
 
 Adatta uno stile *Singola banda falso colore* al min/max di ogni raster, con una sola QML.
