@@ -5,7 +5,8 @@ import os
 
 from qgis.core import (Qgis, QgsApplication, QgsProject, QgsRasterLayer, QgsSettings,
                        QgsTask)
-from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtCore import QUrl
+from qgis.PyQt.QtGui import QDesktopServices, QIcon
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QInputDialog, QMenu, QToolButton
 
 from . import core
@@ -13,6 +14,7 @@ from . import core
 MENU = "&Raster Auto Style"
 ICON = os.path.join(os.path.dirname(__file__), "icon.svg")
 SETTING_AUTO = "raster_auto_style/auto_apply"
+GUIDE_URL = "https://github.com/pigreco/raster_auto_style/blob/main/docs/GUIDA.md"
 
 
 class RasterAutoStylePlugin:
@@ -33,13 +35,15 @@ class RasterAutoStylePlugin:
         self._add_action("Ricalcola stile dinamico", self.refresh_selected)
         self._add_action("Forza statistiche (sidecar .aux.xml)", self.force_stats_selected)
         self._add_action("Esporta stile come template dinamico…", self.export_template)
+        self._add_action("Guida…", self.open_guide)  # sempre ultima in self.actions
 
         # pulsante in barra strumenti con tutte le azioni in un menu a tendina
         self.icon = QIcon(ICON)
         self.menu = QMenu(self.iface.mainWindow())
-        self.menu.addActions(self.actions[1:])
+        self.menu.addActions(self.actions[1:-1])
         self.menu.addSeparator()
         self.menu.addAction(self.actions[0])
+        self.menu.addAction(self.actions[-1])
         self.button = QToolButton()
         self.button.setIcon(self.icon)
         self.button.setToolTip("Raster Auto Style")
@@ -278,6 +282,10 @@ class RasterAutoStylePlugin:
             self._bar(str(exc), Qgis.Warning)
             return
         self._bar(f"Template salvato ({count} classi): {os.path.basename(path)}", Qgis.Success)
+
+    def open_guide(self):
+        if not QDesktopServices.openUrl(QUrl(GUIDE_URL)):
+            self._bar(f"Impossibile aprire il browser. Guida: {GUIDE_URL}", Qgis.Warning)
 
     # --------------------------------------------------------------- utilita'
     def _bar(self, text, level=Qgis.Info):

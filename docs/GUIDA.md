@@ -43,7 +43,7 @@ Puoi selezionare più layer e applicare il template a tutti insieme.
 
 ## 4. Le voci del menu
 
-Il menu (pulsante in barra strumenti o **Raster → Raster Auto Style**) ha sei voci. Le prime cinque agiscono sui layer; l'ultima è un interruttore.
+Il menu (pulsante in barra strumenti o **Raster → Raster Auto Style**) ha sette voci. Le prime cinque agiscono sui layer, poi ci sono un interruttore e il collegamento a questa guida.
 
 | Voce | Su quali layer agisce | Cosa fa |
 |---|---|---|
@@ -53,6 +53,7 @@ Il menu (pulsante in barra strumenti o **Raster → Raster Auto Style**) ha sei 
 | Forza statistiche (sidecar .aux.xml) | tutti i raster selezionati | Calcola le statistiche esatte e le salva |
 | Esporta stile come template dinamico… | solo il layer attivo | Salva lo stile del layer come QML dinamica |
 | Applica automaticamente agli stili dinamici | tutto il progetto | Attiva o disattiva il riscalamento automatico |
+| Guida… | nessuno | Apre questa guida nel browser |
 
 Le voci che lavorano sui «layer selezionati» usano la selezione del pannello Layer e ignorano i layer che non sono raster. Se non c'è nessun raster selezionato compare un avviso. L'esportazione usa invece il layer **attivo**.
 
@@ -97,6 +98,10 @@ La QML ha gli stop relativi tra 0 e 1 e l'indicazione della modalità. Il layer 
 ### Applica automaticamente agli stili dinamici
 
 È una voce con la spunta, **attiva per default**. Il riscalamento automatico è descritto nel [punto 7](#7-applicazione-automatica). Disattivandola, lo stile si riscala solo con le altre voci del menu. L'impostazione viene ricordata tra una sessione e l'altra.
+
+### Guida…
+
+Apre questa pagina nel browser predefinito. Serve una connessione a internet.
 
 ## 5. Min/Max o percentili
 
