@@ -48,7 +48,7 @@ class RasterAutoStylePlugin:
         self.button.setIcon(self.icon)
         self.button.setToolTip("Raster Auto Style")
         self.button.setMenu(self.menu)
-        self.button.setPopupMode(QToolButton.InstantPopup)
+        self.button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.toolbar = self.iface.addToolBar("Raster Auto Style")
         self.toolbar.setObjectName("RasterAutoStyleToolbar")
         self.toolbar.addWidget(self.button)
@@ -136,18 +136,18 @@ class RasterAutoStylePlugin:
         layers = [lyr for lyr in self.iface.layerTreeView().selectedLayers()
                   if isinstance(lyr, QgsRasterLayer)]
         if not layers:
-            self._bar("Seleziona uno o piu' layer raster nel pannello Layer", Qgis.Warning)
+            self._bar("Seleziona uno o piu' layer raster nel pannello Layer", Qgis.MessageLevel.Warning)
         return layers
 
     def _apply(self, layer, quiet=False, force=True) -> bool:
         try:
             vmin, vmax, source = core.apply_dynamic(layer, force=force)
         except core.DynamicStyleError as exc:
-            self._bar(str(exc), Qgis.Warning)
+            self._bar(str(exc), Qgis.MessageLevel.Warning)
             return False
         self.iface.layerTreeView().refreshLayerSymbology(layer.id())
         if not quiet:
-            self._bar(f"{layer.name()}: {vmin:g} – {vmax:g} ({source})", Qgis.Success)
+            self._bar(f"{layer.name()}: {vmin:g} – {vmax:g} ({source})", Qgis.MessageLevel.Success)
         return True
 
     def apply_template(self):
@@ -164,18 +164,18 @@ class RasterAutoStylePlugin:
             for layer in layers:
                 message, ok = layer.loadNamedStyle(path)
                 if not ok:
-                    self._bar(f"{layer.name()}: {message}", Qgis.Warning)
+                    self._bar(f"{layer.name()}: {message}", Qgis.MessageLevel.Warning)
                     continue
                 layer.removeCustomProperty(core.PROP_STOPS)
                 if not core.is_dynamic(layer):
                     self._bar(f"{os.path.basename(path)} non e' un template dinamico "
-                              "(manca dynamic_minmax=true)", Qgis.Warning)
+                              "(manca dynamic_minmax=true)", Qgis.MessageLevel.Warning)
                     break
                 ok_count += self._apply(layer, quiet=len(layers) > 1)
         finally:
             self._busy = False
         if len(layers) > 1:
-            self._bar(f"Template applicato a {ok_count} layer su {len(layers)}", Qgis.Info)
+            self._bar(f"Template applicato a {ok_count} layer su {len(layers)}", Qgis.MessageLevel.Info)
 
     def import_sld(self):
         layers = self._selected_rasters()
@@ -196,10 +196,10 @@ class RasterAutoStylePlugin:
                 try:
                     count = core.apply_sld_colormap(layer, path, n_classes=n or None)
                 except core.DynamicStyleError as exc:
-                    self._bar(f"{layer.name()}: {exc}", Qgis.Warning)
+                    self._bar(f"{layer.name()}: {exc}", Qgis.MessageLevel.Warning)
                     continue
                 self.iface.layerTreeView().refreshLayerSymbology(layer.id())
-                self._bar(f"{layer.name()}: SLD importato, {count} classi", Qgis.Success)
+                self._bar(f"{layer.name()}: SLD importato, {count} classi", Qgis.MessageLevel.Success)
         finally:
             self._busy = False
 
@@ -208,7 +208,7 @@ class RasterAutoStylePlugin:
             if core.is_dynamic(layer):
                 self._apply(layer)
             else:
-                self._bar(f"{layer.name()}: lo stile non e' dinamico", Qgis.Warning)
+                self._bar(f"{layer.name()}: lo stile non e' dinamico", Qgis.MessageLevel.Warning)
 
     def force_stats_selected(self):
         # scansione completa in background: su raster grandi bloccherebbe la GUI
@@ -231,12 +231,12 @@ class RasterAutoStylePlugin:
             if task in self._tasks:
                 self._tasks.remove(task)
             if "error" in outcome:
-                self._bar(outcome["error"], Qgis.Warning)
+                self._bar(outcome["error"], Qgis.MessageLevel.Warning)
                 return
             if "sidecar" not in outcome:  # task annullato
                 return
             self._bar(f"Statistiche salvate in {os.path.basename(outcome['sidecar'])}",
-                      Qgis.Success)
+                      Qgis.MessageLevel.Success)
             current = QgsProject.instance().mapLayer(layer_id)  # puo' essere stato rimosso
             if current is not None and core.is_dynamic(current):
                 self._apply(current, quiet=True)
@@ -244,12 +244,12 @@ class RasterAutoStylePlugin:
         task = QgsTask.fromFunction(f"Statistiche {layer.name()}", run, on_finished=done)
         self._tasks.append(task)
         QgsApplication.taskManager().addTask(task)
-        self._bar(f"{layer.name()}: calcolo statistiche in background…", Qgis.Info)
+        self._bar(f"{layer.name()}: calcolo statistiche in background…", Qgis.MessageLevel.Info)
 
     def export_template(self):
         layer = self.iface.activeLayer()
         if not isinstance(layer, QgsRasterLayer):
-            self._bar("Seleziona un layer raster", Qgis.Warning)
+            self._bar("Seleziona un layer raster", Qgis.MessageLevel.Warning)
             return
         modes = ["Min/Max del file", "Percentili (configurabili)"]
         choice, ok = QInputDialog.getItem(
@@ -281,15 +281,15 @@ class RasterAutoStylePlugin:
                 layer, path, mode="percentile" if choice == modes[1] else "minmax",
                 p_low=p_low, p_high=p_high)
         except core.DynamicStyleError as exc:
-            self._bar(str(exc), Qgis.Warning)
+            self._bar(str(exc), Qgis.MessageLevel.Warning)
             return
-        self._bar(f"Template salvato ({count} classi): {os.path.basename(path)}", Qgis.Success)
+        self._bar(f"Template salvato ({count} classi): {os.path.basename(path)}", Qgis.MessageLevel.Success)
 
     def open_guide(self):
         if not QDesktopServices.openUrl(QUrl(GUIDE_URL)):
-            self._bar(f"Impossibile aprire il browser. Guida: {GUIDE_URL}", Qgis.Warning)
+            self._bar(f"Impossibile aprire il browser. Guida: {GUIDE_URL}", Qgis.MessageLevel.Warning)
 
     # --------------------------------------------------------------- utilita'
-    def _bar(self, text, level=Qgis.Info):
+    def _bar(self, text, level=Qgis.MessageLevel.Info):
         self.iface.messageBar().pushMessage(core.TAG, text, level=level, duration=6)
         core.log(text, level)

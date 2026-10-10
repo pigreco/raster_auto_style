@@ -45,7 +45,7 @@ class DynamicStyleError(Exception):
     """Errore comprensibile da mostrare all'utente."""
 
 
-def log(message: str, level=Qgis.Info) -> None:
+def log(message: str, level=Qgis.MessageLevel.Info) -> None:
     QgsMessageLog.logMessage(message, TAG, level)
 
 
@@ -97,7 +97,7 @@ def relative_stops(layer: QgsRasterLayer, function: QgsColorRampShader):
         try:
             stored = [(float(rel), QColor(color)) for rel, color in json.loads(raw)]
         except (ValueError, TypeError):
-            log(f"{layer.name()}: stop salvati non validi, li ricalcolo", Qgis.Warning)
+            log(f"{layer.name()}: stop salvati non validi, li ricalcolo", Qgis.MessageLevel.Warning)
         else:
             # Gli stop memorizzati valgono solo se nel frattempo l'utente non ha
             # cambiato palette o classi da Proprieta' > Simbologia.
@@ -177,7 +177,7 @@ def stored_stats(layer: QgsRasterLayer, band: int):
         result = (stats[0], stats[1], "metadati del file")
     elif _mtime(sidecar) and _mtime(sidecar) < _mtime(path):
         log(f"{os.path.basename(path)}: sidecar piu' vecchio del file, ignorato",
-            Qgis.Warning)
+            Qgis.MessageLevel.Warning)
     else:
         stats = _read_stats(path, band, use_sidecar=True)
         if stats:
@@ -192,7 +192,7 @@ def _minmax_flags():
     stat = getattr(Qgis, "RasterBandStatistic", None)  # QGIS >= 3.40
     if stat is not None:
         return stat.Min | stat.Max
-    return QgsRasterBandStats.Min | QgsRasterBandStats.Max
+    return QgsRasterBandStats.Stats.Min | QgsRasterBandStats.Stats.Max
 
 
 def granule_range(layer: QgsRasterLayer, band: int):
@@ -274,7 +274,7 @@ def apply_dynamic(layer: QgsRasterLayer, force: bool = True):
 
     if source == "stima su campione":
         log(f"{layer.name()}: statistiche stimate, gli estremi potrebbero essere "
-            "tagliati; usa 'Forza statistiche' per valori esatti", Qgis.Warning)
+            "tagliati; usa 'Forza statistiche' per valori esatti", Qgis.MessageLevel.Warning)
     log(f"{layer.name()}: rampa riscalata su {vmin:g} / {vmax:g} ({source})")
     return vmin, vmax, source
 
@@ -360,9 +360,9 @@ def export_template(layer: QgsRasterLayer, out_path: str,
 # Import della ColorMap da un SLD (GeoServer)
 # --------------------------------------------------------------------------
 _SLD_TYPES = {
-    "ramp": QgsColorRampShader.Interpolated,
-    "intervals": QgsColorRampShader.Discrete,
-    "values": QgsColorRampShader.Exact,
+    "ramp": QgsColorRampShader.Type.Interpolated,
+    "intervals": QgsColorRampShader.Type.Discrete,
+    "values": QgsColorRampShader.Type.Exact,
 }
 
 
@@ -428,8 +428,8 @@ def apply_sld_colormap(layer: QgsRasterLayer, sld_path: str,
                  for i in range(n_classes)]
 
     function = QgsColorRampShader(lo, hi)
-    function.setColorRampType(_SLD_TYPES.get(kind, QgsColorRampShader.Interpolated))
-    function.setClassificationMode(QgsColorRampShader.EqualInterval)
+    function.setColorRampType(_SLD_TYPES.get(kind, QgsColorRampShader.Type.Interpolated))
+    function.setClassificationMode(QgsColorRampShader.ClassificationMode.EqualInterval)
     # legenda a classi (elenco di item) invece della barra continua
     legend = function.legendSettings() or QgsColorRampLegendNodeSettings()
     legend.setUseContinuousLegend(False)
