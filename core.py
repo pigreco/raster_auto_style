@@ -17,6 +17,7 @@ import os
 from osgeo import gdal
 from qgis.core import (
     Qgis,
+    QgsColorRampLegendNodeSettings,
     QgsColorRampShader,
     QgsMessageLog,
     QgsRasterBandStats,
@@ -26,6 +27,9 @@ from qgis.core import (
 from qgis.PyQt.QtGui import QColor
 
 TAG = "Raster Auto Style"
+
+# QColor.HexArgb in Qt5, QColor.NameFormat.HexArgb in Qt6
+_HEX_ARGB = getattr(QColor, "NameFormat", QColor).HexArgb
 
 PROP_FLAG = "dynamic_minmax"
 PROP_MODE = "dynamic_minmax_mode"            # "minmax" | "percentile"
@@ -97,15 +101,15 @@ def relative_stops(layer: QgsRasterLayer, function: QgsColorRampShader):
         else:
             # Gli stop memorizzati valgono solo se nel frattempo l'utente non ha
             # cambiato palette o classi da Proprieta' > Simbologia.
-            current = [i.color.name(QColor.HexArgb) for i in function.colorRampItemList()]
-            if current == [c.name(QColor.HexArgb) for _, c in stored]:
+            current = [i.color.name(_HEX_ARGB) for i in function.colorRampItemList()]
+            if current == [c.name(_HEX_ARGB) for _, c in stored]:
                 return stored
             log(f"{layer.name()}: palette modificata, uso i colori attuali")
     return _relative_from_items(function)
 
 
 def _store_stops(layer: QgsRasterLayer, stops) -> None:
-    payload = [[rel, color.name(QColor.HexArgb)] for rel, color in stops]
+    payload = [[rel, color.name(_HEX_ARGB)] for rel, color in stops]
     layer.setCustomProperty(PROP_STOPS, json.dumps(payload))
 
 
@@ -214,8 +218,28 @@ def granule_range(layer: QgsRasterLayer, band: int):
 # --------------------------------------------------------------------------
 # Applicazione
 # --------------------------------------------------------------------------
-def apply_dynamic(layer: QgsRasterLayer):
-    """Riscala la rampa sul range del layer. Restituisce (min, max, fonte)."""
+def _up_to_date(layer, function, vmin, vmax, source) -> bool:
+    """True se rampa e range del layer sono gia' quelli che applicherei."""
+    if layer.customProperty(PROP_RANGE) != f"{vmin!r};{vmax!r};{source}":
+        return False
+    if (function.minimumValue(), function.maximumValue()) != (vmin, vmax):
+        return False
+    raw = layer.customProperty(PROP_STOPS)
+    if not raw:
+        return False
+    try:
+        stored = [color for _, color in json.loads(raw)]
+    except (ValueError, TypeError):
+        return False
+    return stored == [i.color.name(_HEX_ARGB) for i in function.colorRampItemList()]
+
+
+def apply_dynamic(layer: QgsRasterLayer, force: bool = True):
+    """
+    Riscala la rampa sul range del layer. Restituisce (min, max, fonte).
+    Con force=False non tocca il layer se e' gia' aggiornato (evita di
+    marcare il progetto come modificato a ogni apertura).
+    """
     renderer, shader, function = _pseudocolor(layer)
     stops = relative_stops(layer, function)
     vmin, vmax, source = granule_range(layer, renderer.band())
@@ -224,6 +248,9 @@ def apply_dynamic(layer: QgsRasterLayer):
         raise DynamicStyleError(f"{layer.name()}: statistiche non valide")
     if vmax <= vmin:  # raster costante: evito una rampa degenere
         vmax = vmin + (abs(vmin) * 1e-6 or 1e-6)
+
+    if not force and _up_to_date(layer, function, vmin, vmax, source):
+        return vmin, vmax, source
 
     precision = max(function.labelPrecision(), 0)
     items = []
@@ -245,6 +272,9 @@ def apply_dynamic(layer: QgsRasterLayer):
     layer.triggerRepaint()
     layer.emitStyleChanged()
 
+    if source == "stima su campione":
+        log(f"{layer.name()}: statistiche stimate, gli estremi potrebbero essere "
+            "tagliati; usa 'Forza statistiche' per valori esatti", Qgis.Warning)
     log(f"{layer.name()}: rampa riscalata su {vmin:g} / {vmax:g} ({source})")
     return vmin, vmax, source
 
@@ -399,6 +429,10 @@ def apply_sld_colormap(layer: QgsRasterLayer, sld_path: str,
     function = QgsColorRampShader(lo, hi)
     function.setColorRampType(_SLD_TYPES.get(kind, QgsColorRampShader.Interpolated))
     function.setClassificationMode(QgsColorRampShader.EqualInterval)
+    # legenda a classi (elenco di item) invece della barra continua
+    legend = function.legendSettings() or QgsColorRampLegendNodeSettings()
+    legend.setUseContinuousLegend(False)
+    function.setLegendSettings(legend)
     function.setColorRampItemList([
         QgsColorRampShader.ColorRampItem(lo + r * span, c, f"{lo + r * span:.4f}")
         for r, c in stops])

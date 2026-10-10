@@ -52,6 +52,7 @@
           <item alpha="255" value="0.777778" label="0.7778" color="#6fcc5a"/>
           <item alpha="255" value="0.888889" label="0.8889" color="#b1d93c"/>
           <item alpha="255" value="1" label="1.0000" color="#f4e61e"/>
+          <rampLegendSettings useContinuousLegend="0" minimumLabel="" maximumLabel="" prefix="" suffix="" direction="0" orientation="1"/>
         </colorrampshader>
       </rastershader>
     </rasterrenderer>

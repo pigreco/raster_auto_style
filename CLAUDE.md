@@ -18,6 +18,7 @@ Two modules with a strict split:
 Key mechanics in core:
 
 - A layer is "dynamic" if the custom property `dynamic_minmax=true` is set (persisted in the QML). Related `PROP_*` constants define mode (`minmax`/`percentile`), percentile bounds, and internal state.
+- `apply_dynamic(force=False)` skips untouched layers (used on project open to avoid dirtying the project); manual actions use the default `force=True`.
 - `PROP_STOPS` stores the *relative* stops as JSON on the layer; `apply_dynamic` reads them (`relative_stops`) and writes absolute values into the renderer/shader/color-ramp function (`value = min + rel*(max-min)`). On the first application stops are derived from the QML items, so re-applying must not re-derive from already-scaled items — hence `gui._on_style_loaded` removes `PROP_STOPS` when a fresh QML is loaded.
 - Statistics source priority in `granule_range`: embedded `STATISTICS_MINIMUM/MAXIMUM` tags in the file (matches GeoServer) → `.aux.xml` sidecar → sampled estimate (`SAMPLE_SIZE`). Embedded tags deliberately win over the sidecar because QGIS itself writes `.aux.xml`. Percentile mode always estimates via `cumulativeCut`.
 - `force_stats` writes exact stats to the `.aux.xml` sidecar, never into the TIFF.
